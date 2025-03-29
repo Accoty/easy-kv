@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "main/cache/cm_sketch.hpp"
+#include "easykv/cache/cm_sketch.hpp"
 #include <iostream>
 
 using cpputil::cache::utils::CMSketch4Bits;

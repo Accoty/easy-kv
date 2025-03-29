@@ -2,7 +2,7 @@
 #include <iostream>
 #include <unistd.h>
 
-#include "main/cache/list.hpp"
+#include "easykv/cache/list.hpp"
 
 template <typename T, typename List = cpputil::list::List<T> >
 bool check_equal(List& a, std::vector<T>&& b) {

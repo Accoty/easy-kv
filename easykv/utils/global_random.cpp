@@ -1,5 +1,5 @@
 #include <random>
-#include "main/utils/global_random.h"
+#include "easykv/utils/global_random.h"
 
 namespace cpputil {
 

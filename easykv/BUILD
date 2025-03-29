@@ -1,5 +1,7 @@
+
+
 cc_library(
-    name = "main",
+    name = "easykv",
     srcs = glob([
         "utils/*.cpp",
     ]),

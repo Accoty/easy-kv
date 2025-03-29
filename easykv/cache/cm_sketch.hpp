@@ -5,7 +5,7 @@
 #include <memory>
 #include <type_traits>
 
-#include "main/utils/global_random.h"
+#include "easykv/utils/global_random.h"
 
 namespace cpputil {
 
