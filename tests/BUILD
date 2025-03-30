@@ -17,6 +17,7 @@ cc_binary(
     copts = [
       "-Iexternal/gtest/googletest/include",
       "-Iexternal/gtest/googletest",
+      "-g",
     ],
     deps = [
         "@googletest//:gtest_main",

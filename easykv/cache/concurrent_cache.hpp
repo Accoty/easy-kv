@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <functional>
 #include <iostream>
@@ -47,11 +48,11 @@ class ConcurrentLRUCache {
     // };
 private:
     inline bool ShouldPromote(TNode* node) { // atomic
-        return ++node->promotions >= should_promote_num_;
+        return node->promotions.fetch_add(1, std::memory_order_acq_rel) >= should_promote_num_;
     }
 
     inline void ResetPromote(TNode* node) {
-        node->promotions.store(0);
+        node->promotions.store(0, std::memory_order_acq_rel);
     }
 
     inline void PromoteNoLock(TNode* node) {
@@ -61,8 +62,9 @@ private:
     }
 
     inline void Promote(TNode* node) noexcept {
+        // std::unique_lock<std::mutex> lock(list_mutex_);
         if (ShouldPromote(node)) { // atomic
-            std::unique_lock<std::mutex> lock(list_mutex_);
+            // std::unique_lock<std::mutex> lock(list_mutex_);
             PromoteNoLock(node);
         }
     }
@@ -79,10 +81,13 @@ public:
 
     void Put(const typename PassBy<TValue>::type value) {
         bool exist = false;
-        map_.visit(static_cast<TKey>(value), [&](auto& x) {
-            Promote(x.second);
-            exist = true;
-        });
+        {
+            std::unique_lock<std::mutex> lock(list_mutex_);
+            map_.visit(static_cast<TKey>(value), [&](auto& x) {
+                Promote(x.second);
+                exist = true;
+            });
+        }
 
         if (exist) {
             return;
@@ -90,7 +95,7 @@ public:
 
         TNode* node_ptr;
         {
-            std::lock_guard<std::mutex> lock(list_mutex_);
+            std::unique_lock<std::mutex> lock(list_mutex_);
             // std::unique_lock<std::mutex> lock(list_mutex_); // setting the same value concurrently produces garbage data 
             if (list_.size() == capacity_) {
                 auto node_ptr = list_.PopBack();
@@ -98,18 +103,22 @@ public:
             }
             auto value_ptr = std::make_shared<TValue>(value);
             node_ptr = list_.PushFront(std::move(value_ptr));
+            map_.emplace(static_cast<TKey>(value), node_ptr);
         }
-        map_.emplace(static_cast<TKey>(value), node_ptr);
     }
 
     
     template <typename U = TValue, typename std::enable_if<!std::is_same_v<U, typename PassBy<TValue>::type>, int>::type = 0>
     void Put(TValue&& value) {
         bool exist = false;
-        map_.visit(static_cast<TKey>(value), [&](auto& x) {
-            Promote(x.second);
-            exist = true;
-        });
+        {
+            std::unique_lock<std::mutex> lock(list_mutex_);
+            map_.visit(static_cast<TKey>(value), [&](auto& x) {
+                // TODO optimize protomote
+                Promote(x.second);
+                exist = true;
+            });
+        }
 
         if (exist) {
             return;
@@ -120,16 +129,9 @@ public:
             std::unique_lock<std::mutex> lock(list_mutex_); // setting the same value concurrently produces garbage data 
             if (list_.size() == capacity_) {
                 auto node_ptr = list_.PopBack();
-                std::cout << "erase " << *(node_ptr->value) << " " << static_cast<TKey>(*(node_ptr->value)) << std::endl;
-                auto key = TKey(*(node_ptr->value));
                 map_.erase(static_cast<TKey>(*(node_ptr->value)));
-                std::cout << "finish erase" << std::endl;
-                std::cout << "release " << key << std::endl;
             }
-            std::cout << "emplace pre " << std::endl;
-
             auto value_ptr = std::make_shared<TValue>(std::move(value));
-            std::cout << "emplace " << (*value_ptr) << std::endl;
             node_ptr = list_.PushFront(std::move(value_ptr));
         }
         map_.emplace(static_cast<TKey>(*(node_ptr->value)), node_ptr);
@@ -137,10 +139,13 @@ public:
 
     std::shared_ptr<TValue> Get(const typename PassBy<TKey>::type key) {
         std::shared_ptr<TValue> res;
-        map_.visit(key, [&](const auto& x) {
-            res = x.second->value;
-            Promote(x.second);
-        });
+        {
+            std::unique_lock<std::mutex> lock(list_mutex_);
+            map_.visit(key, [&](const auto& x) {
+                res = x.second->value;
+                Promote(x.second);
+            });
+        }
         return res;
     }
 

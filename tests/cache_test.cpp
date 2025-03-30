@@ -69,3 +69,37 @@ TEST(CacheTest, ConcurrentLRUCache) {
         thread.join();
     }
 }
+
+TEST(CacheTest, ConcurrentBucketLRUCache) {
+    ConcurrentBucketLRUCache<int> cache("test", 1024);
+    const int num = 1500;
+    std::vector<std::thread> threads;
+    const int n = 30, m = 10000;
+    for (int i = 0; i < n; i++) {
+        threads.emplace_back([&, i] {
+            const int x = i;
+            const int id = i;
+            for (int i = 0; i < m; i++) {
+                std::cout << id << " write " << x << std::endl;
+                cache.Put(x);
+            }
+        });
+    }
+    for (int i = 0; i < n; i++) {
+        threads.emplace_back([&] {
+            int x = cpputil::common::GlobalRand() % num;
+            for (int i = 0; i < m; i++) {
+                x = cpputil::common::GlobalRand() % num;
+                auto it = cache.Get(x);
+                if (it) {
+                    std::cout << (*it) << std::endl;
+                } else {
+                    std::cout << "nullptr " << x << " " << cpputil::common::GlobalRand() << std::endl;
+                }
+            }
+        });
+    }
+    for (auto& thread : threads) {
+        thread.join();
+    }
+}
