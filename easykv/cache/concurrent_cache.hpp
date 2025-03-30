@@ -11,7 +11,6 @@
 #include <utility>
 
 #include <boost/unordered/concurrent_flat_map.hpp>
-#include <boost/unordered/concurrent_flat_map_fwd.hpp>
 #include "easykv/cache/list.hpp"
 namespace cpputil {
 
@@ -63,11 +62,8 @@ private:
 
     inline void Promote(TNode* node) noexcept {
         if (ShouldPromote(node)) { // atomic
-            // std::lock_guard<std::mutex> lock(list_mutex_);
             std::unique_lock<std::mutex> lock(list_mutex_);
-            std::cout << "promote " << *(node->value) << " " << node << std::endl;
             PromoteNoLock(node);
-            std::cout << "out promote " << *(node->value) << " " << node << std::endl;
         }
     }
 public:
@@ -84,7 +80,7 @@ public:
     void Put(const typename PassBy<TValue>::type value) {
         bool exist = false;
         map_.visit(static_cast<TKey>(value), [&](auto& x) {
-            Promote(x.second.get());
+            Promote(x.second);
             exist = true;
         });
 
@@ -97,8 +93,8 @@ public:
             std::lock_guard<std::mutex> lock(list_mutex_);
             // std::unique_lock<std::mutex> lock(list_mutex_); // setting the same value concurrently produces garbage data 
             if (list_.size() == capacity_) {
-                // auto node_ptr = list_.PopBack();
-                // map_.erase(static_cast<TKey>(*(node_ptr->value)));
+                auto node_ptr = list_.PopBack();
+                map_.erase(static_cast<TKey>(*(node_ptr->value)));
             }
             auto value_ptr = std::make_shared<TValue>(value);
             node_ptr = list_.PushFront(std::move(value_ptr));
@@ -111,7 +107,7 @@ public:
     void Put(TValue&& value) {
         bool exist = false;
         map_.visit(static_cast<TKey>(value), [&](auto& x) {
-            Promote(x.second.get());
+            Promote(x.second);
             exist = true;
         });
 
@@ -124,9 +120,16 @@ public:
             std::unique_lock<std::mutex> lock(list_mutex_); // setting the same value concurrently produces garbage data 
             if (list_.size() == capacity_) {
                 auto node_ptr = list_.PopBack();
+                std::cout << "erase " << *(node_ptr->value) << " " << static_cast<TKey>(*(node_ptr->value)) << std::endl;
+                auto key = TKey(*(node_ptr->value));
                 map_.erase(static_cast<TKey>(*(node_ptr->value)));
+                std::cout << "finish erase" << std::endl;
+                std::cout << "release " << key << std::endl;
             }
+            std::cout << "emplace pre " << std::endl;
+
             auto value_ptr = std::make_shared<TValue>(std::move(value));
+            std::cout << "emplace " << (*value_ptr) << std::endl;
             node_ptr = list_.PushFront(std::move(value_ptr));
         }
         map_.emplace(static_cast<TKey>(*(node_ptr->value)), node_ptr);
@@ -136,7 +139,7 @@ public:
         std::shared_ptr<TValue> res;
         map_.visit(key, [&](const auto& x) {
             res = x.second->value;
-            Promote(x.second.get());
+            Promote(x.second);
         });
         return res;
     }
@@ -148,10 +151,18 @@ public:
         });
         return res;
     }
+
+    size_t TrueSize() const {
+        return list_.size();
+    }
+
+    size_t size() const {
+        return map_.size();
+    }
 private:
     size_t capacity_;
     size_t should_promote_num_;
-    boost::concurrent_flat_map<TKey, std::shared_ptr<TNode> > map_;
+    boost::concurrent_flat_map<TKey, TNode*> map_;
     cpputil::list::List<std::shared_ptr<TValue> > list_;
     std::mutex list_mutex_;
 };
