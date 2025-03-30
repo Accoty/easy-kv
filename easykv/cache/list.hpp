@@ -24,9 +24,12 @@ struct Node {
     Node(T&& value) {
         this->value = std::move(value);
     }
-    Node(const typename PassBy::type value) {
+    Node(const T& value) {
         this->value = value;
     }
+    // Node(const typename PassBy::type value) {
+    //     this->value = value;
+    // }
     T value;
     std::atomic_size_t promotions{0};
     Node *nxt = nullptr;

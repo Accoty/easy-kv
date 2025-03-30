@@ -3,3 +3,4 @@ MODULE.bazel.lock
 bazel-*
 external
 compile_commands.json
+*.log

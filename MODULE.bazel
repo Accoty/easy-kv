@@ -10,4 +10,3 @@ git_override(
 )
 
 bazel_dep(name = "googletest", version = "1.15.2")
-
