@@ -27,7 +27,7 @@ TEST(BloomFilteTest, Function) {
     char* data = new char[bloom_filter.binary_size()];
     bloom_filter.Save(data);
     easykv::common::BloomFilter new_filter;
-    new_filter.Load(data);
+    std::cout << "load size: " << new_filter.Load(data) << std::endl;
     std::cout << "new binary size " << new_filter.binary_size() << std::endl;
     for (int i = 0; i < n; i++) {
         std::string number = std::to_string(i);

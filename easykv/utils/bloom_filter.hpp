@@ -19,7 +19,7 @@ public:
     size_t binary_size() {
         size_t index = seed_.size() * sizeof(size_t) + 2 * sizeof(size_t);
         size_t align = sizeof(uint64_t) - (index & (sizeof(uint64_t) - 1));
-        return seed_.size() * sizeof(size_t) + 2 * sizeof(size_t) + length_ * sizeof(uint64_t)
+        return seed_.size() * sizeof(size_t) + 2 * sizeof(size_t) + size_ * sizeof(uint64_t)
             + align;
     }
     size_t length() {
