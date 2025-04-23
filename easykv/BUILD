@@ -10,6 +10,8 @@ cc_library(
         "cache/*.h",
         "pool/*.hpp",
         "utils/*.h",
+        "utils/*.hpp",
+        "lsm/*.hpp"
     ]),
     visibility = ["//visibility:public"],
 )
