@@ -1,4 +1,4 @@
-
+#pragma once
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -44,7 +44,7 @@ public:
         loaded_ = true;
         return index;
     }
-    void Save(char* s) {
+    size_t Save(char* s) {
         size_t index = 0;
         *reinterpret_cast<size_t*>(s) = hash_num_;
         index += sizeof(size_t);
@@ -56,6 +56,7 @@ public:
         }
         index += sizeof(uint64_t) - (index & (sizeof(uint64_t) - 1)); // 对齐
         memcpy(s + index, reinterpret_cast<char*>(data_), size_ * sizeof(uint64_t));
+        return index + size_ * sizeof(uint64_t);
     }
     void Init(size_t n, double p) {
         length_ = CalcLength(n, p);

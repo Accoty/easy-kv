@@ -388,8 +388,10 @@ private:
     }
     void stop() {
         stop_ = true;
-        std::unique_lock<std::mutex> lock(refresh_mutex_);
-        refresh_condition_.notify_all();
+        {
+            std::unique_lock<std::mutex> lock(refresh_mutex_);
+            refresh_condition_.notify_all();
+        }
         if (refresh_thread_.joinable()) {
             refresh_thread_.join();
         }

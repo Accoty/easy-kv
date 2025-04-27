@@ -11,7 +11,8 @@ cc_library(
         "pool/*.hpp",
         "utils/*.h",
         "utils/*.hpp",
-        "lsm/*.hpp"
+        "lsm/*.hpp",
+        "*.hpp"
     ]),
     visibility = ["//visibility:public"],
 )

@@ -1,9 +1,12 @@
+#pragma once
 #include <atomic>
 #include <mutex>
 #include <string>
 #include <string_view>
 #include <vector>
 #include <stack>
+
+#include <iostream>
 
 #include "easykv/utils/lock.hpp"
 #include "easykv/utils/global_random.h"
@@ -26,13 +29,52 @@ struct Node {
 
 class ConcurrentSkipList {
 public:
+    class Iterator {
+    public:
+        Iterator(Node* rhs) {
+            it_ = rhs;
+        }
+
+        Iterator& operator ++() {
+            it_ = it_->nexts[0];
+            return *this;
+        }
+
+        Node& operator *() {
+            return *it_;
+        }
+
+        bool operator ==(const Iterator& rhs) {
+            return it_ == rhs.it_;
+        }
+
+        bool operator !=(const Iterator& rhs) {
+            return it_ != rhs.it_;
+        }
+
+    private:
+        Node* it_;
+    };
+
     ConcurrentSkipList() {
         head_ = new Node();
         head_->nexts.resize(1);
     }
 
+    Iterator begin() {
+        return Iterator(head_->nexts[0]);
+    }
+
+    Iterator end() {
+        return Iterator(nullptr);
+    }
+
     size_t size() {
         return size_;
+    }
+
+    size_t binary_size() {
+        return binary_size_;
     }
 
     bool Get(std::string_view key, std::string& value) {
@@ -60,6 +102,7 @@ public:
     
     // 一写多读
     void Put(std::string_view key, std::string_view value) {
+        // // std::cout << "put " << key << " " << value << std::endl;
         easykv::common::RWLock::ReadLock lock(delete_rw_lock_);
 
         {
@@ -76,6 +119,8 @@ public:
                     last = p;
                 }
                 if (p->nexts[level] && p->nexts[level]->key == key) {
+                    binary_size_ += value.size();
+                    binary_size_ -= p->nexts[level]->value.size();
                     p->nexts[level]->value = value; // string_view ->(copy) string
                     return;
                 }
@@ -85,6 +130,7 @@ public:
         auto node = new Node(key, value, new_level);
         easykv::common::RWLock::WriteLock(node->rw_lock);
         ++size_;
+        binary_size_ += key.size() + value.size();
         if (new_level > head_->nexts.size()) {
             easykv::common::RWLock::WriteLock _lock(head_->rw_lock);
             head_->nexts.resize(new_level, nullptr);
@@ -132,6 +178,7 @@ public:
             return;
         }
         --size_;
+        binary_size_ -= delete_node->key.size() + delete_node->value.size();
         delete delete_node;
         size_t remove_level_cnt = 0;
         for (size_t level = p->nexts.size() - 1; level >= 0; level--) {
@@ -154,6 +201,7 @@ private:
     }
 private:
     std::atomic_size_t size_{0};
+    std::atomic_size_t binary_size_{0};
     std::mutex lock_;
     easykv::common::RWLock delete_rw_lock_;
     Node* head_;
