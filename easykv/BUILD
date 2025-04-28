@@ -1,5 +1,3 @@
-
-
 cc_library(
     name = "easykv",
     srcs = glob([
@@ -12,7 +10,10 @@ cc_library(
         "utils/*.h",
         "utils/*.hpp",
         "lsm/*.hpp",
-        "*.hpp"
+        "*.hpp",
     ]),
+    deps = [
+        "//easykv/raft/protos:cc_raft_grpc"
+    ],
     visibility = ["//visibility:public"],
 )

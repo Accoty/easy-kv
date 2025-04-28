@@ -10,3 +10,8 @@ git_override(
 )
 
 bazel_dep(name = "googletest", version = "1.15.2")
+bazel_dep(name = "protobuf", version = "27.3")
+# bazel_dep(name = "grpc", version = "1.70.1")
+bazel_dep(name = "rules_proto_grpc_cpp", version = "5.0.0")
+bazel_dep(name = "toolchains_protoc", version = "0.3.6")
+

@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package raft.easykv;
+
+message Base {
+    int32 code = 1;
+    string message = 2;
+}
+
+message GetReq {
+    string key = 1;
+}
+
+message GetRsp {
+    Base base = 1;
+    string value = 2;
+}
+
+message PutReq {
+    string key = 1;
+    string value = 2;
+}
+
+message PutRsp {
+    Base base = 1;
+}

@@ -1,0 +1,7 @@
+namespace easykv {
+
+class Client {
+
+};
+
+}
