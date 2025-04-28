@@ -1,10 +1,14 @@
+#include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <ctime>
 #include <grpcpp/support/status.h>
 #include <mutex>
 #include <thread>
 #include <vector>
 
+#include "easykv/pool/thread_pool.hpp"
 #include "easykv/raft/raft_log.hpp"
 #include "easykv/raft/client.hpp"
 
@@ -27,6 +31,7 @@ public:
 private:
     Client rpc_client_;
     Address addr_;
+    int64_t nextindex_;
 };
 
 class Pod {
@@ -85,6 +90,9 @@ private:
             status_ = PodStatus::Follower;
         }
         voted_ = true;
+        last_time_ = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch()
+        ).count());
         return true;
     }
 
@@ -95,6 +103,7 @@ private:
                 status_ = PodStatus::Follower;
                 term_ = req.term();
                 voted_ = false;
+                SelectTimeoutRout();
             }
         }
         return true;
@@ -139,6 +148,9 @@ private:
         if (election_thread_.joinable()) {
             election_thread_.join();
         }
+        last_time_ = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch()
+        ).count());
         election_thread_ = std::thread([this]() {
             while (true) {
                 std::unique_lock<std::mutex> lock(election_thread_mutex_);
@@ -148,6 +160,11 @@ private:
                 });
                 if (election_thread_stop_flag_) {
                     break;
+                }
+                if (static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(
+                    std::chrono::system_clock::now().time_since_epoch()
+                ).count()) - last_time_ < timeout_time_ms_) {
+                    continue;
                 }
                 if (RequestVote()) {
                     break;
@@ -167,6 +184,9 @@ private:
     std::mutex election_thread_mutex_;
     std::condition_variable election_cv_;
     bool election_thread_stop_flag_ = false;
+    std::atomic_uint64_t last_time_{static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+    ).count())};
     int32_t id_;
     int32_t leader_id_;
     int32_t voted_ = false;
@@ -174,6 +194,7 @@ private:
     int64_t term_ = 0;
     std::vector<Follower> followers_;
     RaftLog raft_log_;
+    std::unique_ptr<cpputil::pool::ThreadPool> pool_;
 };
 
 }
