@@ -10,6 +10,7 @@ cc_library(
         "utils/*.h",
         "utils/*.hpp",
         "lsm/*.hpp",
+        "raft/*.hpp",
         "*.hpp",
     ]),
     deps = [
@@ -17,3 +18,14 @@ cc_library(
     ],
     visibility = ["//visibility:public"],
 )
+
+cc_binary(
+    name = "easykv_service",
+    srcs = [
+        "server.cpp",
+    ],
+    deps = [
+        ":easykv"
+    ]
+)
+
