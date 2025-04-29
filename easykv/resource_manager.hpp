@@ -1,3 +1,4 @@
+#pragma once
 #include <memory>
 
 #include "easykv/db.hpp"
@@ -32,7 +33,7 @@ public:
     }
 
     void InitPod() {
-        pod_ = std::make_unique<raft::Pod>();
+        pod_ = std::make_unique<raft::Pod>(config_manager_->local_address().id(), config_manager_->config());
     }
 
     raft::ConfigManager& config_manager() {

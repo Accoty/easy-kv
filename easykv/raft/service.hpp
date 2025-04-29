@@ -1,4 +1,6 @@
 #pragma once
+#include "easykv/resource_manager.hpp"
+
 #include "easykv/raft/protos/raft.grpc.pb.h"
 #include <grpcpp/support/status.h>
 
@@ -9,7 +11,7 @@ class EasyKvServiceServiceImpl final : public raft::EasyKvService::Service {
     Status Put(grpc::ServerContext* ctx,
                                   const raft::PutReq* req,
                                   raft::PutRsp* rsp) {
-        
+        std::cout << "Put" << std::endl;
         return Status::OK;
     }
     Status Get(grpc::ServerContext* ctx,
@@ -26,6 +28,18 @@ class EasyKvServiceServiceImpl final : public raft::EasyKvService::Service {
     Status RequestVote(grpc::ServerContext* ctx,
         const raft::RequestVoteReq* req,
         raft::RequestVoteRsp* rsp) {
+        std::cout << "solve request vote" << std::endl;
+        bool res = ResourceManager::instance().pod().Vote(*req);
+        std::cout << "out " << res << std::endl;
+        if (!res) {
+            raft::Base* base = new raft::Base;
+            base->set_code(-1);
+            rsp->set_allocated_base(base);
+        } else {
+            raft::Base* base = new raft::Base;
+            base->set_code(0);
+            rsp->set_allocated_base(base);
+        }
         return Status::OK;
     }
     Status Append(grpc::ServerContext* ctx,

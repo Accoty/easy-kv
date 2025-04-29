@@ -8,6 +8,7 @@
 #include <string>
 void RunServer() {
     easykv::ResourceManager::instance().InitDb();
+    easykv::ResourceManager::instance().InitPod();
     auto local_addr = easykv::ResourceManager::instance().config_manager().local_address();
     std::string server_addr = local_addr.ip() + ":" + std::to_string(local_addr.port());
     easykv::EasyKvServiceServiceImpl service;
