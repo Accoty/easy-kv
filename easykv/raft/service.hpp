@@ -12,6 +12,7 @@ class EasyKvServiceServiceImpl final : public raft::EasyKvService::Service {
                                   const raft::PutReq* req,
                                   raft::PutRsp* rsp) {
         std::cout << "Put" << std::endl;
+        
         return Status::OK;
     }
     Status Get(grpc::ServerContext* ctx,

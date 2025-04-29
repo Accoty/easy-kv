@@ -3,6 +3,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <ctime>
+#include <future>
 #include <grpcpp/support/status.h>
 #include <iostream>
 #include <mutex>
@@ -32,8 +33,13 @@ public:
         rpc_client_.SetPort(addr.port());
         rpc_client_.Connect();
     }
+
     Client& rpc_client() {
         return rpc_client_;
+    }
+
+    void TrackIndex(RaftLog& leader_raft_log) {
+        
     }
 private:
     Client rpc_client_;
@@ -72,7 +78,11 @@ public:
         return true;
     }
 private:
-
+    void UpdateLastTime() {
+        last_time_ = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()
+        ).count());
+    }
     PodStatus GetPodStatusWithLock() {
         std::unique_lock<std::mutex> lock(election_mutex_);
         return status_;
@@ -122,22 +132,30 @@ private:
     }
 
     bool SolveAppend(const AppendReq& req) {
+        UpdateLastTime();
         {
             std::unique_lock<std::mutex> lock(election_mutex_);
             if (req.term() > term_) {
-                status_ = PodStatus::Follower;
                 term_ = req.term();
                 voted_ = false;
-                {
-                    std::unique_lock<std::mutex> lock(election_thread_mutex_);
-                    status_ = PodStatus::Follower;
-                }
+                status_ = PodStatus::Follower;
+            }
+        }
+        if (req.entrys_size()) {
+            auto future = UpdateRaftLog(req.entrys());
+            if (future.get() != 0) {
+                return false;
             }
         }
         return true;
     }
-
 private:
+
+    std::future<int32_t> UpdateRaftLog(const google::protobuf::RepeatedPtrField<::easykv::raft::Entry>& entries) {
+        std::promise<int32_t> promise;
+        promise.set_value(0);
+        return promise.get_future();
+    }
 
     void SendHeartBeat() {
         std::cout << "send heart beat, status" << int(status_) << std::endl;
