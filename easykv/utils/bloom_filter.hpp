@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <string_view>
 #include <vector>
 
 #include "easykv/utils/global_random.h"
@@ -74,6 +75,12 @@ public:
             data_[key / 64] |= 1 << (key & 63);
         }
     }
+    void Insert(std::string_view s, size_t len) {
+        for (auto seed : seed_) {
+            size_t key = CalcHash(s, len, seed) % length_;
+            data_[key / 64] |= 1 << (key & 63);
+        }
+    }
     bool Check(const char* s, size_t len) {
         for (auto seed : seed_) {
             size_t key = CalcHash(s, len, seed) % length_;
@@ -90,6 +97,14 @@ public:
     }
 private:
     size_t CalcHash(const char* s, size_t len, size_t seed) {
+        size_t res = 0;
+        for (size_t i = 0; i < len; i++) {
+            res *= seed;
+            res += static_cast<size_t>(s[i]);
+        }
+        return res;
+    }
+    size_t CalcHash(std::string_view s, size_t len, size_t seed) {
         size_t res = 0;
         for (size_t i = 0; i < len; i++) {
             res *= seed;

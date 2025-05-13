@@ -39,7 +39,7 @@ public:
     }
 
     void TrackIndex(RaftLog& leader_raft_log) {
-        
+
     }
 private:
     Client rpc_client_;
@@ -142,8 +142,8 @@ private:
             }
         }
         if (req.entrys_size()) {
-            auto future = UpdateRaftLog(req.entrys());
-            if (future.get() != 0) {
+            auto code = UpdateRaftLog(req.entrys());
+            if (code != 0) {
                 return false;
             }
         }
@@ -151,10 +151,17 @@ private:
     }
 private:
 
-    std::future<int32_t> UpdateRaftLog(const google::protobuf::RepeatedPtrField<::easykv::raft::Entry>& entries) {
+    int32_t UpdateRaftLog(const google::protobuf::RepeatedPtrField<::easykv::raft::Entry>& entries) {
         std::promise<int32_t> promise;
-        promise.set_value(0);
-        return promise.get_future();
+        if (entries.size() == 1) {
+            auto entry = entries.Get(0);
+            if (entry.index() != raft_log_.index() + 1) {
+                return -1;
+            }
+            if ()
+
+        }
+        return 0;
     }
 
     void SendHeartBeat() {

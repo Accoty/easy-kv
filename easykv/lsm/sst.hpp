@@ -33,8 +33,8 @@ struct EntryIndex {
     }
 };
 /*
-IndexBlock in file [size(4byte) | cnt(4byte) | (offset(4byte) + key_size(4byte) + key(key_size byte)), ...]
-DataBlock in file [(size(4byte) | bloom_filter | cnt(4byte) | (key_size(4byte) + value_size(4byte) + key(key_size byte) + value(value_size byte)), ...]
+IndexBlock in file [size(8byte) | cnt(8byte) | (offset(8byte) + key_size(8byte) + key(key_size byte)), ...]
+DataBlock in file [(size(8byte) | bloom_filter | cnt(8byte) | (key_size(8byte) + value_size(8byte) + key(key_size byte) + value(value_size byte)), ...]
 SST in file [IndexBlock | (DataBlock...)]
 
 DataBlcok 和 IndexBlock 都以文件形式访问，Memtable 边序列化边构建 DataBlock
@@ -101,6 +101,10 @@ public:
         }
         return false;
     };
+
+    std::vector<EntryIndex>& data_index() {
+        return data_index_;
+    }
 private:
     size_t offset_;
     std::vector<EntryIndex> data_index_;
@@ -131,6 +135,17 @@ private:
     std::string_view key_;
     DataBlockIndex data_block_index_;
     bool data_block_loaded_ = false;
+};
+
+struct EntryView {
+    EntryView(std::string& k, std::string& v): key(k), value(v) {
+        
+    }
+    EntryView(std::string_view k, std::string_view v): key(k), value(v) {
+        
+    }
+    std::string_view key;
+    std::string_view value;
 };
 
 class IndexBlockIndex {
@@ -178,15 +193,138 @@ public:
     const std::string_view key() const {
         return data_block_indexs_.begin()->key();
     }
+
+    std::vector<DataBlockIndexIndex>& data_block_index() {
+        return data_block_indexs_;
+    }
 private:
     size_t binary_size_;
     size_t size_{0};
     std::vector<DataBlockIndexIndex> data_block_indexs_;
 };
 
+// no empty sst
 class SST {
 public:
+    class Iterator {
+    public:
+        Iterator(SST* sst, bool rbegin = false): sst_(sst) {
+            if (rbegin) {
+                data_block_index_it_ = sst_->data_block_index().end();
+                --data_block_index_it_;
+                data_block_entry_it_ = data_block_index_it_->Get().data_index().end();
+                --data_block_entry_it_;
+            } else {
+                data_block_index_it_ = sst_->data_block_index().begin();
+                data_block_entry_it_ = data_block_index_it_->Get().data_index().begin();
+            }
+        }
+
+        EntryIndex& operator * () {
+            return *data_block_entry_it_;
+        }
+
+        bool operator ! () {
+            return data_block_index_it_ == sst_->data_block_index().end();
+        }
+
+        Iterator& operator ++ () {
+            ++data_block_entry_it_;
+            if (data_block_entry_it_ == data_block_index_it_->Get().data_index().end()) {
+                ++data_block_index_it_;
+                data_block_entry_it_ = data_block_index_it_->Get().data_index().begin();
+            }
+            return *this;
+        }
+    private:
+        std::vector<DataBlockIndexIndex>::iterator data_block_index_it_;
+        std::vector<EntryIndex>::iterator data_block_entry_it_;
+        SST* sst_;
+    };
+
     SST() {}
+
+    SST(std::vector<EntryView> entries, int id) {
+
+        common::BloomFilter bloom_filter;
+        bloom_filter.Init(entries.size(), 0.01);
+        size_t data_block_size = sizeof(size_t); // data_block_size
+        size_t index_block_size = 2 * sizeof(size_t) * (entries.size() + 1);
+        index_block_size += (*entries.begin()).key.size();
+        for (auto it = entries.begin(); it != entries.end(); ++it) {
+            bloom_filter.Insert((*it).key.data(), (*it).key.size());
+            data_block_size += (*it).key.size() + (*it).value.size();
+        }
+        data_block_size += entries.size() * 2 * sizeof(size_t);
+        data_block_size += bloom_filter.binary_size();
+        data_block_size += sizeof(size_t); // cnt
+
+        file_size_ = index_block_size + data_block_size;
+        
+        id_ = id;
+        name_ = std::to_string(id_) + ".sst";
+        // std::cout << "open file " << std::endl;
+        fd_ = open(name_.c_str(), O_RDWR);
+        if (fd_ == -1) {
+            fd_ = open(name_.c_str(), O_RDWR | O_CREAT, 0700);
+        }
+
+        lseek(fd_, file_size_ - 1, SEEK_SET);
+        write(fd_, "1", 1);
+
+        // std::cout << " fd is " << fd_ << " size is " << file_size_ << std::endl;
+        data_ = (char*)mmap(NULL, file_size_, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0);
+        // std::cout << " create data " << std::endl;
+        char* index_block_ptr = data_;
+        char* data_block_ptr = data_ + index_block_size;
+        size_t index_block_index = 0;
+        size_t data_block_index = 0;
+        // std::cout << "assign " << std::endl;
+        // memcpy(data_, &index_block_size, 4);
+        *reinterpret_cast<size_t*>(index_block_ptr) = index_block_size;
+        std::cout << " index block size " << index_block_size << std::endl;
+        std::cout << " data block size " << data_block_size << std::endl;
+        std::cout << " bloom filter size " << bloom_filter.binary_size() << std::endl;
+        index_block_index += sizeof(size_t);
+        // std::cout << "assign 2" << std::endl;
+        *reinterpret_cast<size_t*>(index_block_ptr + index_block_index) = 1; // cnt
+        index_block_ptr += sizeof(size_t);
+        *reinterpret_cast<size_t*>(index_block_ptr + index_block_index) = index_block_size; // offset
+        index_block_index += sizeof(size_t);
+        *reinterpret_cast<size_t*>(index_block_ptr + index_block_index) = (*entries.begin()).key.size(); // key size
+        index_block_index += sizeof(size_t);
+        memcpy(index_block_ptr + index_block_index, (*entries.begin()).key.data(), (*entries.begin()).key.size());
+
+        // std::cout << "memcpy index_block" << std::endl;
+        // std::cout << "offset " << data_block_ptr - data_ << std::endl;
+        *reinterpret_cast<size_t*>(data_block_ptr) = data_block_size;
+        data_block_index += sizeof(size_t);
+        data_block_index += bloom_filter.Save(data_block_ptr + data_block_index);
+        *reinterpret_cast<size_t*>(data_block_ptr + data_block_index) = entries.size();
+        data_block_index += sizeof(size_t);
+        for (auto it = entries.begin(); it != entries.end(); ++it) {
+            *reinterpret_cast<size_t*>(data_block_ptr + data_block_index) = (*it).key.size();
+            data_block_index += sizeof(size_t);
+            *reinterpret_cast<size_t*>(data_block_ptr + data_block_index) = (*it).value.size();
+            data_block_index += sizeof(size_t);
+            memcpy(data_block_ptr + data_block_index, (*it).key.data(), (*it).key.size());
+            data_block_index += (*it).key.size();
+            memcpy(data_block_ptr + data_block_index, (*it).value.data(), (*it).value.size());
+            data_block_index += (*it).value.size();
+        }
+
+        for (int i = 0; i < file_size_; i++) {
+            std::cout << int(data_[i]) << " ";
+        } std::cout << std::endl;
+
+        // std::cout << "load index" << std::endl;
+
+        index_block.Load(data_);
+
+        // std::cout << " finish loaded " << std::endl;
+        loaded_ = true;
+        ready_ = true;
+    }
 
     SST(MemeTable& memtable, size_t id) {
         // std::cout << "make sst " << id << std::endl;
@@ -196,6 +334,7 @@ public:
         size_t data_block_size = sizeof(size_t); // data_block_size
         size_t index_block_size = 2 * sizeof(size_t) * (memtable.size() + 1);
         index_block_size += (*memtable.begin()).key.size();
+        std::cout << (*memtable.begin()).key.size() << " " << (*memtable.begin()).key << std::endl;
         for (auto it = memtable.begin(); it != memtable.end(); ++it) {
             bloom_filter.Insert((*it).key.c_str(), (*it).key.size());
             data_block_size += (*it).key.size() + (*it).value.size();
@@ -227,9 +366,9 @@ public:
         // std::cout << "assign " << std::endl;
         // memcpy(data_, &index_block_size, 4);
         *reinterpret_cast<size_t*>(index_block_ptr) = index_block_size;
-        // std::cout << " index block size " << index_block_size << std::endl;
-        // std::cout << " data block size " << data_block_size << std::endl;
-        // std::cout << " bloom filter size " << bloom_filter.binary_size() << std::endl;
+        std::cout << " index block size " << index_block_size << std::endl;
+        std::cout << " data block size " << data_block_size << std::endl;
+        std::cout << " bloom filter size " << bloom_filter.binary_size() << std::endl;
         index_block_index += sizeof(size_t);
         // std::cout << "assign 2" << std::endl;
         *reinterpret_cast<size_t*>(index_block_ptr + index_block_index) = 1; // cnt
@@ -258,6 +397,10 @@ public:
             data_block_index += (*it).value.size();
         }
 
+        for (int i = 0; i < file_size_; i++) {
+            std::cout << int(data_[i]) << " ";
+        } std::cout << std::endl;
+
         // std::cout << "load index" << std::endl;
 
         index_block.Load(data_);
@@ -265,6 +408,14 @@ public:
         // std::cout << " finish loaded " << std::endl;
         loaded_ = true;
         ready_ = true;
+    }
+
+    Iterator begin() {
+        return Iterator(this);
+    }
+
+    Iterator rbegin() { // can NOT move
+        return Iterator(this, true);
     }
 
     size_t id() const {
@@ -330,6 +481,10 @@ public:
 
     bool Get(std::string_view key, std::string& value) {
         return index_block.Get(key, value);
+    }
+
+    std::vector<DataBlockIndexIndex>& data_block_index() {
+        return index_block.data_block_index();
     }
 private:
     bool ready_ = false;

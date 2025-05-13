@@ -113,7 +113,11 @@ private:
         {
             easykv::common::RWLock::WriteLock w_lock(manifest_lock_);
             // std::cout << " todo insert " << std::endl;
-            manifest_queue_.emplace_back(manifest_queue_.back()->InsertAndUpdate(sst));
+            auto new_manifest = manifest_queue_.back()->InsertAndUpdate(sst);
+            if (new_manifest->CanDoCompaction()) {
+                new_manifest->SizeTieredCompaction(++sst_id_);
+            }
+            manifest_queue_.emplace_back(new_manifest);
         }
         // std::cout << " finish insert and update " << std::endl;
 
@@ -127,6 +131,8 @@ private:
             inmemtables_ = std::move(new_inmemtables);
         }
     }
+
+private:
 private:
     constexpr static size_t memetable_max_size_ = 4096 * 1024 - 1024 * 1024; // <= 4kb(page size)
     std::shared_ptr<easykv::lsm::MemeTable> memtable_;

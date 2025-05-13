@@ -1,13 +1,16 @@
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <memory>
 #include <mutex>
+#include <queue>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "easykv/lsm/skiplist.hpp"
 #include "easykv/lsm/sst.hpp"
 #include "easykv/lsm/memtable.hpp"
 
@@ -95,6 +98,18 @@ class Manifest {
             return ssts_.size();
         }
 
+        size_t binary_size() {
+            size_t res = 0;
+            for (auto& sst_ptr : ssts_) {
+                res += sst_ptr->binary_size();
+            }
+            return res;
+        }
+
+        std::vector<std::shared_ptr<SST> >& ssts() {
+            return ssts_;
+        }
+
     private:
         size_t level_;
         std::vector<std::shared_ptr<SST> > ssts_;
@@ -164,6 +179,7 @@ public:
         easykv::common::RWLock::ReadLock r_lock(memtable_rw_lock_);
         ++count_;
         for (size_t i = 0; i < levels_.size(); i++) {
+            std::cout << "Find in level " << i << std::endl;
             if (levels_[i].Get(key, value)) {
                 return true;
             }
@@ -188,7 +204,110 @@ public:
     size_t max_sst_id() {
         return max_sst_id_;
     }
+
+    struct SizeTieredCompactionStruct {
+        SizeTieredCompactionStruct(SST& sst, size_t value): it(sst.begin()), second_value(value) {}
+        bool operator < (const SizeTieredCompactionStruct& rhs) const {
+            if ((*const_cast<SizeTieredCompactionStruct*>(this)->it).key == (*const_cast<SizeTieredCompactionStruct&>(rhs).it).key) {
+                return second_value > rhs.second_value;
+            }
+            return (*const_cast<SizeTieredCompactionStruct*>(this)->it).key > (*const_cast<SizeTieredCompactionStruct&>(rhs).it).key;
+        }
+        SST::Iterator it;
+        size_t second_value;
+    };
+
+    void SizeTieredCompaction(size_t level, int id) {
+        std::priority_queue<SizeTieredCompactionStruct> queue;
+        // std::priority_queue<SizeTieredCompactionStruct, 
+        //     std::vector<SizeTieredCompactionStruct>, 
+        //         std::greater<SizeTieredCompactionStruct> > queue; // 小根堆
+        size_t value = 0;
+        std::string_view min_key;
+        std::string_view max_key;
+        for (auto it = levels_[level].ssts().rbegin(); it != levels_[level].ssts().rend(); ++it) {
+            SizeTieredCompactionStruct data(**it, value++);
+            queue.push(std::move(data));
+            if (min_key.empty()) {
+                min_key = (*(*it)->begin()).key;
+            } else if ((*(*it)->begin()).key < min_key) {
+                min_key = (*(*it)->begin()).key;
+            }
+            std::cout << (*(*it)->rbegin()).key << " " << (*(*it)->begin()).key << std::endl;
+            if (max_key.empty()) {
+                max_key = (*(*it)->rbegin()).key;
+            } else if ((*(*it)->rbegin()).key > max_key) {
+                max_key = (*(*it)->rbegin()).key;
+            }
+        }
+        if (level + 1 == levels_.size()) {
+            levels_.emplace_back(Level(level + 1));
+        }
+        std::cout << min_key << " min max " << max_key << " " << levels_[level + 1].ssts().size() << std::endl;
+        int insert_l = -1, insert_r = levels_[level + 1].ssts().size();
+        for (auto i = 0; i < levels_[level + 1].ssts().size(); i++) {
+            auto& sst_ptr = levels_[level + 1].ssts()[i];
+        // for (auto it = levels_[level + 1].ssts().rbegin(); it != levels_[level + 1].ssts().rend(); ++it) {
+            if ((*(sst_ptr->rbegin())).key < min_key) {
+                insert_l = std::max(insert_l, i);
+            } else if ((*(sst_ptr->begin())).key > max_key) {
+                insert_r = std::min(insert_r, i);
+            } else {
+                SizeTieredCompactionStruct data(*sst_ptr, value++);
+                queue.push(std::move(data));
+            }
+        }
+        std::cout << insert_l << " insert lr " << insert_r << " " << std::endl;
+        
+
+        std::vector<EntryView> entrys;
+        while (!queue.empty()) {
+            auto data = queue.top();
+            queue.pop();
+            if (entrys.empty() || entrys.back().key != (*data.it).key) {
+                std::cout << "emplace " << (*data.it).key << std::endl;
+                entrys.emplace_back((*data.it).key, (*data.it).value);
+            }
+            if (!(++data.it)) {
+                continue;
+            } else {
+                queue.push(data);
+            }
+        }
+
+        auto new_sst_ptr = std::make_shared<SST>(entrys, id);
+        if (id > max_sst_id_) {
+            max_sst_id_ = id;
+        }
+        
+        std::vector<std::shared_ptr<SST>> new_ssts;
+        for (int i = 0; i <= insert_l; i++) {
+            new_ssts.emplace_back(levels_[level + 1].ssts()[i]);
+        }
+        new_ssts.emplace_back(new_sst_ptr);
+        for (int i = insert_r; i < levels_[level + 1].ssts().size(); i++) {
+            new_ssts.emplace_back(levels_[level + 1].ssts()[i]);
+        }
+        levels_[level].ssts().clear();
+        levels_[level + 1].ssts() = std::move(new_ssts);
+    }
+
+    void SizeTieredCompaction(int id) {
+        for (int i = 0; i < levels_.size() && i < max_level_size_; i++) {
+            if (levels_[i].binary_size() > level_max_binary_size_[i]) {
+                SizeTieredCompaction(i, id);
+            } else {
+                break;
+            }
+        }
+    }
+
+    bool CanDoCompaction() {
+        return levels_[0].binary_size() > level_max_binary_size_[0];
+    }
 private:
+    constexpr static const size_t max_level_size_ = 5;
+    constexpr static const size_t level_max_binary_size_[] = {1, 10 * 1024 * 1024, 100 * 1024 * 1024, 1000 * 1024 * 1024, 10000ll * 1024 * 1024};
     constexpr static const char* name_ = "manifest";
     std::atomic_size_t count_{0};
     size_t version_;
