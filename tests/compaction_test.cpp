@@ -13,7 +13,7 @@
 
 
 TEST(Compaction, Read) {
-    const int n = 10;
+    const int n = 40000;
     auto manifest = std::make_shared<easykv::lsm::Manifest>();
     {
         std::vector<std::string> keys;

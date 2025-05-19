@@ -29,3 +29,12 @@ cc_binary(
     ]
 )
 
+cc_binary(
+    name = "easykv_client",
+    srcs = [
+        "client.cpp",
+    ],
+    deps = [
+        ":easykv"
+    ]
+)

@@ -25,15 +25,16 @@ public:
     }
 
     void InitDb() {
-        db_ = std::make_unique<DB>();
+        db_ = std::make_shared<DB>();
     }
 
     raft::Pod& pod() {
         return *pod_;
     }
 
+    // 一定要先InitDb
     void InitPod() {
-        pod_ = std::make_unique<raft::Pod>(config_manager_->local_address().id(), config_manager_->config());
+        pod_ = std::make_unique<raft::Pod>(config_manager_->local_address().id(), config_manager_->config(), db_);
     }
 
     raft::ConfigManager& config_manager() {
@@ -48,9 +49,15 @@ public:
         db_ = nullptr;
     }
 
+    void Close() {
+        pod_ = nullptr;
+        std::cout << "finish close pod" << std::endl;
+        CloseDb();
+    }
+
 private:
     std::unique_ptr<raft::ConfigManager> config_manager_;
-    std::unique_ptr<DB> db_;
+    std::shared_ptr<DB> db_;
     std::unique_ptr<raft::Pod> pod_;
 };
 

@@ -3,6 +3,7 @@
 
 #include "easykv/raft/protos/raft.grpc.pb.h"
 #include <grpcpp/support/status.h>
+#include <string>
 
 namespace easykv {
 
@@ -11,19 +12,19 @@ class EasyKvServiceServiceImpl final : public raft::EasyKvService::Service {
     Status Put(grpc::ServerContext* ctx,
                                   const raft::PutReq* req,
                                   raft::PutRsp* rsp) {
-        std::cout << "Put" << std::endl;
-        
+        ResourceManager::instance().pod().Put(*req, *rsp);
         return Status::OK;
     }
     Status Get(grpc::ServerContext* ctx,
         const raft::GetReq* req,
         raft::GetRsp* rsp) {
+        ResourceManager::instance().pod().Get(req, rsp);
         return Status::OK;
     }
     Status UpdateConfig(grpc::ServerContext* ctx,
         const raft::Config* req,
         raft::UpdateConfigRsp* rsp) {
-        return Status::OK;
+        return Status::CANCELLED;
     }
 
     Status RequestVote(grpc::ServerContext* ctx,
@@ -46,6 +47,10 @@ class EasyKvServiceServiceImpl final : public raft::EasyKvService::Service {
     Status Append(grpc::ServerContext* ctx,
         const raft::AppendReq* req,
         raft::AppendRsp* rsp) {
+        auto code = ResourceManager::instance().pod().SolveAppend(*req);
+        auto base = new raft::Base;
+        base->set_code(code);
+        rsp->set_allocated_base(base);
         return Status::OK;
     }
     Status Commit(grpc::ServerContext* ctx,

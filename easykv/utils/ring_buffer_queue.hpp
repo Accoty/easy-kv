@@ -12,6 +12,7 @@ public:
             return false;
         }
         data_[++head_] = std::move(rhs);
+        return true;
     }
 
     bool PushBack(const T& rhs) {
@@ -19,6 +20,7 @@ public:
             return false;
         }
         data_[++head_] = rhs;
+        return true;
     }
 
     bool Empty() {
@@ -26,11 +28,19 @@ public:
     }
 
     bool PopFront() {
+        if (tail_ == head_) {
+            return false;
+        }
         ++tail_;
+        return true;
     }
 
     bool PopBack() {
+        if (tail_ == head_) {
+            return false;
+        }
         --head_;
+        return true;
     }
 
     T& Back() {

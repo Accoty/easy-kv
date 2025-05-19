@@ -6,18 +6,18 @@
 #include "easykv/db.hpp"
 #include "easykv/pool/thread_pool.hpp"
 
-// TEST(DB, Function) {
-//     easykv::DB db;
-//     const int n = 1000000;
-//     for (int i = 0; i < n; i++) {
-//         db.Put(std::to_string(i), std::to_string(i + 1));
-//     }
-//     for (int i = 0; i < n; i++) {
-//         std::string value;
-//         ASSERT_EQ(db.Get(std::to_string(i), value), true);
-//         ASSERT_EQ(value, std::to_string(i + 1));
-//     }
-// }
+TEST(DB, Function) {
+    easykv::DB db;
+    const int n = 1000000;
+    for (int i = 0; i < n; i++) {
+        db.Put(std::to_string(i), std::to_string(i + 1));
+    }
+    for (int i = 0; i < n; i++) {
+        std::string value;
+        ASSERT_EQ(db.Get(std::to_string(i), value), true);
+        ASSERT_EQ(value, std::to_string(i + 1));
+    }
+}
 
 // TEST(DB, MultiThread) {
 //     easykv::DB db;
@@ -65,6 +65,6 @@ TEST(DB, Read) {
     for (int i = 0; i < n; i++) {
         std::string value;
         db.Get(std::to_string(i), value);
-        // std::cout << value << std::endl;
+        ASSERT_EQ(value, std::to_string(i + 1));
     }
 }

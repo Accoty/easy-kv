@@ -37,6 +37,7 @@ class Manifest {
                 index += sizeof(size_t);
                 if (sst_id != -1) {
                     auto sst_ptr = std::make_shared<SST>();
+                    std::cout << "level " << level_ << "add sst " << sst_id << std::endl;
                     sst_ptr->SetId(sst_id);
                     sst_ptr->Load();
                     ssts_.emplace_back(sst_ptr);
@@ -179,7 +180,7 @@ public:
         easykv::common::RWLock::ReadLock r_lock(memtable_rw_lock_);
         ++count_;
         for (size_t i = 0; i < levels_.size(); i++) {
-            std::cout << "Find in level " << i << std::endl;
+            // std::cout << "Find in level " << i << std::endl;
             if (levels_[i].Get(key, value)) {
                 return true;
             }
@@ -233,7 +234,7 @@ public:
             } else if ((*(*it)->begin()).key < min_key) {
                 min_key = (*(*it)->begin()).key;
             }
-            std::cout << (*(*it)->rbegin()).key << " " << (*(*it)->begin()).key << std::endl;
+            // std::cout << (*(*it)->rbegin()).key << " " << (*(*it)->begin()).key << std::endl;
             if (max_key.empty()) {
                 max_key = (*(*it)->rbegin()).key;
             } else if ((*(*it)->rbegin()).key > max_key) {
@@ -265,7 +266,7 @@ public:
             auto data = queue.top();
             queue.pop();
             if (entrys.empty() || entrys.back().key != (*data.it).key) {
-                std::cout << "emplace " << (*data.it).key << std::endl;
+                // std::cout << "emplace " << (*data.it).key << " " << (*data.it).value << std::endl;
                 entrys.emplace_back((*data.it).key, (*data.it).value);
             }
             if (!(++data.it)) {
@@ -307,7 +308,7 @@ public:
     }
 private:
     constexpr static const size_t max_level_size_ = 5;
-    constexpr static const size_t level_max_binary_size_[] = {1, 10 * 1024 * 1024, 100 * 1024 * 1024, 1000 * 1024 * 1024, 10000ll * 1024 * 1024};
+    constexpr static const size_t level_max_binary_size_[] = {1024, 10 * 1024 * 1024, 100 * 1024 * 1024, 1000 * 1024 * 1024, 10000ll * 1024 * 1024};
     constexpr static const char* name_ = "manifest";
     std::atomic_size_t count_{0};
     size_t version_;

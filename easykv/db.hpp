@@ -86,7 +86,6 @@ private:
                         to_sst = true;
                     }
                 }
-                // std::cout << "to sst " << to_sst << std::endl;
                 if (to_sst) {
                     ToSST();
                 } else {
@@ -109,17 +108,14 @@ private:
         
         auto sst = std::make_shared<lsm::SST>(*inmemtable, ++sst_id_);
         
-        // std::cout << " finish created sst" << std::endl;
         {
             easykv::common::RWLock::WriteLock w_lock(manifest_lock_);
-            // std::cout << " todo insert " << std::endl;
             auto new_manifest = manifest_queue_.back()->InsertAndUpdate(sst);
             if (new_manifest->CanDoCompaction()) {
                 new_manifest->SizeTieredCompaction(++sst_id_);
             }
             manifest_queue_.emplace_back(new_manifest);
         }
-        // std::cout << " finish insert and update " << std::endl;
 
         {
             easykv::common::RWLock::WriteLock w_lock(memtable_lock_);

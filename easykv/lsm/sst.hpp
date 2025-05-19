@@ -19,6 +19,8 @@
 namespace easykv {
 namespace lsm {
 struct EntryIndex {
+    // std::string key;
+    // std::string value;
     std::string_view key;
     std::string_view value;
     size_t offset;
@@ -282,9 +284,9 @@ public:
         // std::cout << "assign " << std::endl;
         // memcpy(data_, &index_block_size, 4);
         *reinterpret_cast<size_t*>(index_block_ptr) = index_block_size;
-        std::cout << " index block size " << index_block_size << std::endl;
-        std::cout << " data block size " << data_block_size << std::endl;
-        std::cout << " bloom filter size " << bloom_filter.binary_size() << std::endl;
+        // std::cout << " index block size " << index_block_size << std::endl;
+        // std::cout << " data block size " << data_block_size << std::endl;
+        // std::cout << " bloom filter size " << bloom_filter.binary_size() << std::endl;
         index_block_index += sizeof(size_t);
         // std::cout << "assign 2" << std::endl;
         *reinterpret_cast<size_t*>(index_block_ptr + index_block_index) = 1; // cnt
@@ -313,9 +315,9 @@ public:
             data_block_index += (*it).value.size();
         }
 
-        for (int i = 0; i < file_size_; i++) {
-            std::cout << int(data_[i]) << " ";
-        } std::cout << std::endl;
+        // for (int i = 0; i < file_size_; i++) {
+        //     std::cout << int(data_[i]) << " ";
+        // } std::cout << std::endl;
 
         // std::cout << "load index" << std::endl;
 
@@ -363,14 +365,11 @@ public:
         char* data_block_ptr = data_ + index_block_size;
         size_t index_block_index = 0;
         size_t data_block_index = 0;
-        // std::cout << "assign " << std::endl;
-        // memcpy(data_, &index_block_size, 4);
         *reinterpret_cast<size_t*>(index_block_ptr) = index_block_size;
-        std::cout << " index block size " << index_block_size << std::endl;
-        std::cout << " data block size " << data_block_size << std::endl;
-        std::cout << " bloom filter size " << bloom_filter.binary_size() << std::endl;
+        // std::cout << " index block size " << index_block_size << std::endl;
+        // std::cout << " data block size " << data_block_size << std::endl;
+        // std::cout << " bloom filter size " << bloom_filter.binary_size() << std::endl;
         index_block_index += sizeof(size_t);
-        // std::cout << "assign 2" << std::endl;
         *reinterpret_cast<size_t*>(index_block_ptr + index_block_index) = 1; // cnt
         index_block_ptr += sizeof(size_t);
         *reinterpret_cast<size_t*>(index_block_ptr + index_block_index) = index_block_size; // offset
@@ -397,9 +396,9 @@ public:
             data_block_index += (*it).value.size();
         }
 
-        for (int i = 0; i < file_size_; i++) {
-            std::cout << int(data_[i]) << " ";
-        } std::cout << std::endl;
+        // for (int i = 0; i < file_size_; i++) {
+        //     std::cout << int(data_[i]) << " ";
+        // } std::cout << std::endl;
 
         // std::cout << "load index" << std::endl;
 

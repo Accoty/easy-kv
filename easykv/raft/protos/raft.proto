@@ -7,13 +7,21 @@ message Base {
     string message = 2;
 }
 
+message Address {
+    int32 id = 1;
+    string ip = 2;
+    int32 port = 3;
+}
+
 message GetReq {
     string key = 1;
+    bool read_from_leader = 2;
 }
 
 message GetRsp {
     Base base = 1;
     string value = 2;
+    Address leader_addr = 3;
 }
 
 message PutReq {
@@ -23,12 +31,7 @@ message PutReq {
 
 message PutRsp {
     Base base = 1;
-}
-
-message Address {
-    int32 id = 1;
-    string ip = 2;
-    int32 port = 3;
+    Address leader_addr = 2;
 }
 
 message Config {
@@ -54,12 +57,15 @@ message Entry {
     int32 index = 2;
     string key = 3;
     string value = 4;
-    string mode = 5; // 0: put 1: delete
+    int32 mode = 5; // 0: put 1: delete
+    int32 commited = 6;
 }
 
 message AppendReq {
     int64 term = 1;
-    repeated Entry entrys = 2;
+    int64 commited_index = 2;
+    int64 id = 3;
+    repeated Entry entrys = 4;
 }
 
 message AppendRsp {
@@ -89,5 +95,5 @@ service EasyKvService {
     rpc UpdateConfig(Config) returns (UpdateConfigRsp) {}
     rpc RequestVote(RequestVoteReq) returns (RequestVoteRsp) {}
     rpc Append(AppendReq) returns (AppendRsp) {}
-    rpc Commit(CommitReq) returns (CommitRsp) {}
+    // rpc Commit(CommitReq) returns (CommitRsp) {}
 }
